@@ -1,6 +1,6 @@
-# Drop
+# AirMesh
 
-Drop is a browser based peer-to-peer file transfer app. The signaling service coordinates short-lived pairing rooms; file bytes are sent over an encrypted WebRTC data channel and are never sent to the signaling service.
+AirMesh is a browser based peer-to-peer file transfer app. The signaling service coordinates short-lived pairing rooms; file bytes are sent over an encrypted WebRTC data channel and are never sent to the signaling service.
 
 ## Run locally
 
@@ -20,7 +20,7 @@ npm install
 npm run dev
 ```
 
-Find the Windows PC's LAN IPv4 address with `ipconfig` (for example, `192.168.1.23`). Open Drop on both devices using `http://192.168.1.23:5173`, not `localhost`; the Vite dev script binds to the LAN now. If Windows Firewall prompts for Node.js, allow it on the private network. Both devices must be on the same non-guest Wi-Fi network, and the router must allow peer-to-peer traffic.
+Find the Windows PC's LAN IPv4 address with `ipconfig` (for example, `192.168.1.23`). Open AirMesh on both devices using `http://192.168.1.23:5173`, not `localhost`; the Vite dev script binds to the LAN now. If Windows Firewall prompts for Node.js, allow it on the private network. Both devices must be on the same non-guest Wi-Fi network, and the router must allow peer-to-peer traffic.
 
 The browser defaults to signaling at `ws://<page-host>:8787/signal`. If needed, set `VITE_SIGNALING_URL=ws://192.168.1.23:8787/signal` before starting Vite. Use HTTPS and WSS in production. An HTTPS page cannot connect to this development server's plain `ws://` endpoint; the signaling server must be behind TLS termination. The signaling server listens on port 8787 by default; `PORT` overrides it.
 
