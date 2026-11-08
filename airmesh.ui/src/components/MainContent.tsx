@@ -1,12 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { useDrop } from "../utils/useDrop";
 import { Icon } from "./Icon";
+import labels from "../config/labels.json";
 import "../styles/App.css";
 
 function formatSize(bytes: number) {
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes < 1024 * 1024)
+    return `${(bytes / 1024).toFixed(0)} ${labels.units.kilobytes}`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} ${labels.units.megabytes}`;
 }
+
+const interpolate = (template: string, values: Record<string, string | number>) =>
+  template.replace(/\{(\w+)\}/g, (_, key: string) => String(values[key] ?? ""));
+const transferStatusLabels: Record<string, string> = labels.transferStatus;
 
 function MainContent() {
   const drop = useDrop();
@@ -32,7 +38,10 @@ function MainContent() {
     if (drop.phase === "connected") {
       drop.sendFiles(selected);
       setNotice(
-        `${selected.length} ${selected.length === 1 ? "file" : "files"} added to the transfer queue`,
+        interpolate(
+          selected.length === 1 ? labels.transfer.queuedSingular : labels.transfer.queuedPlural,
+          { count: selected.length },
+        ),
       );
       return;
     }
@@ -48,36 +57,20 @@ function MainContent() {
   return (
     <div className={`app-shell ${theme}`}>
       <header className="topbar">
-        <a className="brand" href="#home" aria-label="Drop home">
-          <span className="brand-mark">
-            <span />
-            <span />
-            <span />
-            <span />
-          </span>
+        <a className="brand" href="#home" aria-label={labels.accessibility.home}>
+          <img className="brand-mark" src="/favicon.svg" alt="" />
           <span>
-            drop<span className="brand-period">.</span>
+            {labels.brand}<span className="brand-period">.</span>
           </span>
         </a>
-        <nav className="top-nav" aria-label="Main navigation">
-          <a className="nav-active" href="#home">
-            Transfer
-          </a>
-          <a href="#how">How it works</a>
-        </nav>
+        <nav className="top-nav" aria-label={labels.accessibility.mainNavigation}></nav>
         <div className="top-actions">
-          <span className="privacy-pill">
-            <Icon name="shield" size={15} /> Private by design
-          </span>
           <button
             className="theme-toggle"
             onClick={toggleTheme}
-            aria-label={`Switch to ${theme === "light" ? "dark" : "light"} theme`}
+            aria-label={interpolate(labels.accessibility.switchTheme, { theme: theme === "light" ? labels.theme.dark : labels.theme.light })}
           >
             <Icon name={theme === "light" ? "moon" : "sun"} size={18} />
-          </button>
-          <button className="avatar" aria-label="Guest profile">
-            G
           </button>
         </div>
       </header>
@@ -85,15 +78,15 @@ function MainContent() {
       <main id="home">
         <section className="hero-copy">
           <div className="eyebrow">
-            <span className="eyebrow-dot" /> THE SIMPLE WAY TO SHARE
+            <span className="eyebrow-dot" /> {labels.hero.eyebrow}
           </div>
           <h1>
-            Send files.
+            {labels.hero.title}
             <br />
-            <em>Not through the cloud.</em>
+            <em>{labels.hero.subtitle}</em>
           </h1>
           <p>
-            Fast, private transfers that go straight from your device to theirs.
+            {labels.hero.description}
           </p>
         </section>
 
@@ -128,19 +121,19 @@ function MainContent() {
               <span className="secure-icon">
                 <Icon name="shield" size={16} />
               </span>
-              <span>End-to-end encrypted</span>
+              <span>{labels.transfer.encrypted}</span>
             </div>
             <span className="direct-label">
-              <i /> DIRECT CONNECTION
+              <i /> {labels.transfer.directConnection}
             </span>
           </div>
           <div className="transfer-grid">
             <div className="send-panel">
               <div className="panel-heading">
                 <div>
-                  <span className="step-label">01 / SEND</span>
-                  <h2>Choose your files</h2>
-                  <p>Drop them here, or pick from your device.</p>
+                  <span className="step-label">{labels.transfer.sendStep}</span>
+                  <h2>{labels.transfer.chooseFiles}</h2>
+                  <p>{labels.transfer.chooseFilesHelp}</p>
                 </div>
                 <span className="round-icon violet">
                   <Icon name="send" size={19} />
@@ -154,21 +147,20 @@ function MainContent() {
                   <Icon name="plus" size={23} />
                 </span>
                 <strong>
-                  {dragging ? "Drop your files" : "Add files to send"}
+                  {dragging ? labels.transfer.dropFiles : labels.transfer.addFiles}
                 </strong>
                 <span>
-                  Browse files <span className="subtle">or drag & drop</span>
+                  {labels.transfer.browseFiles} <span className="subtle">{labels.transfer.dragDrop}</span>
                 </span>
-                <small>Large files supported · browser limits apply</small>
+                <small>{labels.transfer.largeFilesNote}</small>
               </button>
               {files.length > 0 && (
                 <div className="selected-files">
                   <div className="files-heading">
                     <span>
-                      {files.length} {files.length === 1 ? "file" : "files"}{" "}
-                      selected
+                      {interpolate(files.length === 1 ? labels.transfer.selectedSingular : labels.transfer.selectedPlural, { count: files.length })}
                     </span>
-                    <button onClick={() => setFiles([])}>Clear all</button>
+                    <button onClick={() => setFiles([])}>{labels.transfer.clearAll}</button>
                   </div>
                   {files.map((file, index) => (
                     <div className="file-row" key={`${file.name}-${index}`}>
@@ -181,7 +173,7 @@ function MainContent() {
                       </span>
                       <button
                         className="remove-file"
-                        aria-label={`Remove ${file.name}`}
+                        aria-label={interpolate(labels.accessibility.removeFile, { file: file.name })}
                         onClick={() =>
                           setFiles((current) =>
                             current.filter((_, i) => i !== index),
@@ -206,11 +198,11 @@ function MainContent() {
                 <span>
                   {drop.phase === "connected"
                     ? files.length
-                      ? `Send ${files.length} ${files.length === 1 ? "file" : "files"}`
-                      : "Select files to send"
+                      ? interpolate(files.length === 1 ? labels.transfer.sendSingular : labels.transfer.sendPlural, { count: files.length })
+                      : labels.transfer.selectFilesToSend
                     : drop.phase === "waiting"
-                      ? "Waiting for device…"
-                      : "Create secure room"}
+                      ? labels.transfer.waitingForDevice
+                      : labels.transfer.createSecureRoom}
                 </span>
                 <Icon name="arrow" size={17} />
               </button>
@@ -221,15 +213,15 @@ function MainContent() {
                 >
                   <div className="transfer-progress-top">
                     <span>
-                      {transfer.direction === "send" ? "Sending" : "Receiving"}{" "}
+                      {transfer.direction === "send" ? labels.transfer.sending : labels.transfer.receiving}{" "}
                       {transfer.name}
                     </span>
                     <span>
                       {transfer.status === "complete"
-                        ? "Complete"
+                        ? labels.transfer.complete
                         : transfer.status === "waiting"
-                          ? "Waiting for approval"
-                          : transfer.status}
+                          ? labels.transfer.waitingForApproval
+                        : transferStatusLabels[transfer.status] ?? transfer.status}
                     </span>
                   </div>
                   <div className="progress-track">
@@ -252,14 +244,14 @@ function MainContent() {
               ))}
             </div>
             <div className="divider">
-              <span>OR</span>
+              <span>{labels.transfer.or}</span>
             </div>
             <div className="receive-panel">
               <div className="panel-heading">
                 <div>
-                  <span className="step-label">02 / RECEIVE</span>
-                  <h2>Connect a device</h2>
-                  <p>Scan a QR code or enter a pairing code.</p>
+                  <span className="step-label">{labels.transfer.receiveStep}</span>
+                  <h2>{labels.transfer.connectDevice}</h2>
+                  <p>{labels.transfer.connectHelp}</p>
                 </div>
                 <span className="round-icon mint">
                   <Icon name="receive" size={19} />
@@ -271,7 +263,7 @@ function MainContent() {
                     <img
                       className="real-qr"
                       src={drop.qr}
-                      alt="Scan to join this Drop room"
+                      alt={labels.accessibility.qrCode}
                     />
                   ) : (
                     <div className="qr-placeholder">
@@ -280,8 +272,8 @@ function MainContent() {
                       </span>
                       <span>
                         {drop.phase === "waiting"
-                          ? "Creating secure room…"
-                          : "Create a room to show QR"}
+                          ? labels.transfer.creatingRoom
+                          : labels.transfer.createRoomForQr}
                       </span>
                     </div>
                   )}
@@ -293,30 +285,30 @@ function MainContent() {
                     }
                   />
                   {drop.phase === "connected"
-                    ? "Device connected securely"
+                    ? labels.transfer.deviceConnected
                     : drop.phase === "waiting"
-                      ? "Waiting for a device to join"
-                      : "Pairing ready when you are"}
+                      ? labels.transfer.waitingToJoin
+                      : labels.transfer.pairingReady}
                 </div>
                 <button
                   className="copy-link"
                   onClick={() => {
                     if (drop.pairCode) {
                       void navigator.clipboard?.writeText(drop.pairCode);
-                      setNotice("Pairing code copied");
+                      setNotice(labels.transfer.pairingCodeCopied);
                     } else startPairing();
                   }}
                 >
                   <Icon name="link" size={15} />
                   {drop.pairCode
-                    ? "Copy manual pairing code"
-                    : "Create a pairing room"}
+                    ? labels.transfer.copyPairingCode
+                    : labels.transfer.createPairingRoom}
                 </button>
               </div>
               <div className="manual-row">
-                <span>Can’t scan the code?</span>
+                <span>{labels.transfer.cannotScan}</span>
                 <button onClick={() => setManual((value) => !value)}>
-                  {manual ? "Close" : "Enter code"}{" "}
+                  {manual ? labels.transfer.close : labels.transfer.enterCode}{" "}
                   <Icon name="arrow" size={13} />
                 </button>
               </div>
@@ -331,10 +323,10 @@ function MainContent() {
                   <input
                     value={code}
                     onChange={(event) => setCode(event.target.value.trim())}
-                    placeholder="Paste pairing link or code"
-                    aria-label="Pairing code"
+                    placeholder={labels.transfer.pairingPlaceholder}
+                    aria-label={labels.accessibility.pairingCode}
                   />
-                  <button type="submit" aria-label="Connect with code">
+                  <button type="submit" aria-label={labels.accessibility.connectWithCode}>
                     <Icon name="arrow" size={17} />
                   </button>
                 </form>
@@ -358,8 +350,8 @@ function MainContent() {
           <div className="connected-card">
             <div className="section-heading">
               <div>
-                <span className="section-kicker">YOUR DEVICES</span>
-                <h3>Connected devices</h3>
+                <span className="section-kicker">{labels.devices.section}</span>
+                <h3>{labels.devices.title}</h3>
               </div>
               <span className="count-badge">
                 {drop.phase === "connected" ? "1" : "0"}
@@ -371,36 +363,33 @@ function MainContent() {
                   <span className="empty-device">
                     <Icon name="device" size={23} />
                   </span>
-                  <strong>{drop.peerName || "Connected device"}</strong>
-                  <span>Ready to transfer directly.</span>
+                  <strong>{drop.peerName || labels.devices.connectedDevice}</strong>
+                  <span>{labels.devices.ready}</span>
                 </>
               ) : (
                 <>
                   <span className="empty-device">
                     <Icon name="device" size={23} />
                   </span>
-                  <strong>No devices connected yet</strong>
-                  <span>Pair a device to start sharing files.</span>
+                  <strong>{labels.devices.none}</strong>
+                  <span>{labels.devices.pairPrompt}</span>
                 </>
               )}
             </div>
             <div className="device-footnote">
-              <span className="online-indicator" /> Devices appear here when
-              connected
+              <span className="online-indicator" /> {labels.devices.footnote}
             </div>
           </div>
         </section>
         <footer className="page-footer">
-          <span>© 2025 Drop. A little more private.</span>
+          <span>{labels.footer.copyright}</span>
           <span>
             <span className="footer-lock">
               <Icon name="shield" size={13} />
             </span>{" "}
-            Peer-to-peer by design
+            {labels.footer.peerToPeer}
           </span>
-          <a href="#how">
-            How it works <Icon name="arrow" size={13} />
-          </a>
+          <span>{labels.footer.author}</span>
         </footer>
       </main>
       {drop.error && (
@@ -419,20 +408,19 @@ function MainContent() {
             <span className="round-icon mint modal-icon">
               <Icon name="receive" />
             </span>
-            <span className="step-label">INCOMING TRANSFER</span>
-            <h2 id="incoming-title">Accept this file?</h2>
+            <span className="step-label">{labels.incoming.step}</span>
+            <h2 id="incoming-title">{labels.incoming.title}</h2>
             <p>
               <strong>{drop.incoming.name}</strong>
               <br />
-              {formatSize(drop.incoming.size)} · sent directly from the
-              connected device
+              {interpolate(labels.incoming.description, { size: formatSize(drop.incoming.size) })}
             </p>
             <div className="incoming-actions">
               <button onClick={() => drop.respondToIncoming(false)}>
-                Decline
+                {labels.incoming.decline}
               </button>
               <button onClick={() => void drop.respondToIncoming(true)}>
-                Accept file
+                {labels.incoming.accept}
               </button>
             </div>
           </section>

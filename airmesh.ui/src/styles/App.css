@@ -52,23 +52,8 @@
 .brand-mark {
   width: 25px;
   height: 25px;
-  border-radius: 8px;
-  background: #625add;
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 3px;
-  padding: 6px;
-  transform: rotate(-7deg);
-}
-.brand-mark span {
-  background: white;
-  border-radius: 2px;
-}
-.brand-mark span:nth-child(2) {
-  opacity: 0.72;
-}
-.brand-mark span:nth-child(3) {
-  opacity: 0.55;
+  display: block;
+  object-fit: contain;
 }
 .top-nav {
   display: flex;
