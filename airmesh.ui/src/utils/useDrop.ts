@@ -3,14 +3,23 @@ import QRCode from "qrcode";
 import { browserLog } from "./logger";
 import labels from "../config/labels.json";
 
-const interpolate = (template: string, values: Record<string, string | number>) =>
+const interpolate = (
+  template: string,
+  values: Record<string, string | number>,
+) =>
   template.replace(/\{(\w+)\}/g, (_, key: string) => String(values[key] ?? ""));
 const serverErrorLabels: Record<string, string> = labels.errors.serverErrors;
 const serverErrorMessage = (code: string) =>
   serverErrorLabels[code] ?? labels.errors.unknownServerError;
 
 type Phase = "idle" | "waiting" | "connecting" | "connected" | "error";
-type Incoming = { id: string; name: string; size: number; type: string };
+type Incoming = {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  batchFiles?: { name: string; size: number }[];
+};
 type Transfer = {
   name: string;
   size: number;
@@ -70,7 +79,8 @@ export function useDrop() {
   const receiverBytes = useRef(0);
   const receiverWriter = useRef<FileSystemWritableFileStream | null>(null);
   const activeTransfer = useRef<Incoming | null>(null);
-  const sendQueue = useRef<File[]>([]);
+  const approvedBatches = useRef(new Set<string>());
+  const sendQueue = useRef<File[][]>([]);
   const drainingQueue = useRef(false);
   const mounted = useRef(true);
 
@@ -133,7 +143,7 @@ export function useDrop() {
   }, []);
 
   const sendFile = useCallback(
-    async (file: File) => {
+    async (file: File, batchId: string) => {
       const dc = channel.current;
       if (!dc || dc.readyState !== "open") return;
       const id = transferId();
@@ -142,6 +152,7 @@ export function useDrop() {
         JSON.stringify({
           type: "file-offer",
           id,
+          batchId,
           name: file.name,
           size: file.size,
           mime: file.type || "application/octet-stream",
@@ -169,7 +180,7 @@ export function useDrop() {
             return;
           }
           if (message.id !== id) return;
-          if (message.type === "file-accepted") {
+          if (message.type === "file-accepted" && message.batchId === batchId) {
             browserLog.info("transfer.offer.accepted", {
               sizeBytes: file.size,
             });
@@ -260,6 +271,52 @@ export function useDrop() {
     [updateTransfer],
   );
 
+  const sendBatch = useCallback(
+    async (files: File[]) => {
+      const dc = channel.current;
+      if (!dc || dc.readyState !== "open") return;
+      const batchId = transferId();
+      dc.send(
+        JSON.stringify({
+          type: "batch-offer",
+          id: batchId,
+          files: files.map(({ name, size }) => ({ name, size })),
+        }),
+      );
+      const accepted = await new Promise<boolean>((resolve) => {
+        const timeout = window.setTimeout(() => {
+          dc.removeEventListener("message", listener);
+          resolve(false);
+        }, 120_000);
+        const listener = (event: MessageEvent) => {
+          if (typeof event.data !== "string") return;
+          try {
+            const message = JSON.parse(event.data) as Wire;
+            if (
+              message.id !== batchId ||
+              !["batch-accepted", "batch-rejected"].includes(message.type)
+            )
+              return;
+            window.clearTimeout(timeout);
+            dc.removeEventListener("message", listener);
+            resolve(message.type === "batch-accepted");
+          } catch {
+            /* Ignore unrelated messages. */
+          }
+        };
+        dc.addEventListener("message", listener);
+      });
+      if (!accepted) {
+        files.forEach((file) =>
+          updateTransfer(file.name, { status: "rejected" }),
+        );
+        return;
+      }
+      for (const file of files) await sendFile(file, batchId);
+    },
+    [sendFile, updateTransfer],
+  );
+
   const drainQueue = useCallback(async () => {
     if (drainingQueue.current) return;
     drainingQueue.current = true;
@@ -268,18 +325,20 @@ export function useDrop() {
         sendQueue.current.length &&
         channel.current?.readyState === "open"
       ) {
-        const file = sendQueue.current.shift()!;
+        const files = sendQueue.current.shift()!;
         browserLog.info("transfer.queue.next", {
           remainingFiles: sendQueue.current.length,
-          sizeBytes: file.size,
+          fileCount: files.length,
         });
         try {
-          await sendFile(file);
+          await sendBatch(files);
         } catch (reason) {
           browserLog.error("transfer.send.failed", {
             message: reason instanceof Error ? reason.message : "unknown-error",
           });
-          updateTransfer(file.name, { status: "error" });
+          files.forEach((file) =>
+            updateTransfer(file.name, { status: "error" }),
+          );
         }
       }
     } finally {
@@ -287,7 +346,7 @@ export function useDrop() {
       if (sendQueue.current.length && channel.current?.readyState === "open")
         void drainQueue();
     }
-  }, [sendFile, updateTransfer]);
+  }, [sendBatch, updateTransfer]);
 
   const attachChannel = useCallback(
     (dc: RTCDataChannel) => {
@@ -328,9 +387,7 @@ export function useDrop() {
                   receivedBytes: receiverBytes.current,
                   expectedBytes: current?.size,
                 });
-                setError(
-                  labels.errors.invalidChunk,
-                );
+                setError(labels.errors.invalidChunk);
                 dc.close();
                 return;
               }
@@ -360,6 +417,34 @@ export function useDrop() {
               return;
             }
             if (
+              message.type === "batch-offer" &&
+              typeof message.id === "string" &&
+              Array.isArray(message.files)
+            ) {
+              const batchFiles = message.files.filter(
+                (f): f is { name: string; size: number } =>
+                  !!f &&
+                  typeof f.name === "string" &&
+                  Number.isSafeInteger(f.size) &&
+                  Number(f.size) >= 0,
+              );
+              if (
+                !batchFiles.length ||
+                batchFiles.length !== message.files.length ||
+                batchFiles.length > 100
+              )
+                return;
+              setIncoming({
+                id: message.id,
+                name:
+                  batchFiles.length === 1
+                    ? batchFiles[0].name
+                    : `${batchFiles.length} files`,
+                size: batchFiles.reduce((sum, file) => sum + file.size, 0),
+                type: "",
+                batchFiles,
+              });
+            } else if (
               message.type === "device-info" &&
               typeof message.name === "string"
             ) {
@@ -391,7 +476,29 @@ export function useDrop() {
               });
               receiverParts.current = [];
               receiverBytes.current = 0;
-              setIncoming(offer);
+              if (
+                typeof message.batchId === "string" &&
+                approvedBatches.current.has(message.batchId)
+              ) {
+                if (
+                  offer.size > fallbackLimit &&
+                  !("showSaveFilePicker" in window)
+                ) {
+                  dc.send(
+                    JSON.stringify({ type: "file-rejected", id: offer.id }),
+                  );
+                  activeTransfer.current = null;
+                  return;
+                }
+                dc.send(
+                  JSON.stringify({
+                    type: "file-accepted",
+                    id: offer.id,
+                    batchId: message.batchId,
+                  }),
+                );
+                updateTransfer(offer.name, { status: "transferring" });
+              } else setIncoming(offer);
               updateTransfer(offer.name, {
                 size: offer.size,
                 direction: "receive",
@@ -494,9 +601,7 @@ export function useDrop() {
           mounted.current
         ) {
           setPhase("error");
-          setError(
-            labels.errors.connectionInterrupted,
-          );
+          setError(labels.errors.connectionInterrupted);
         }
       };
       if (role === "sender")
@@ -540,7 +645,9 @@ export function useDrop() {
             ? labels.errors.tlsHint
             : labels.errors.lanHint;
         setPhase("error");
-        setError(interpolate(labels.errors.signalingUnreachable, { endpoint, hint }));
+        setError(
+          interpolate(labels.errors.signalingUnreachable, { endpoint, hint }),
+        );
         browserLog.error("signaling.connection.failed", {
           endpoint,
           pageProtocol: location.protocol,
@@ -724,7 +831,7 @@ export function useDrop() {
         fileCount: files.length,
         totalBytes: files.reduce((total, file) => total + file.size, 0),
       });
-      sendQueue.current.push(...files);
+      sendQueue.current.push(files);
       void drainQueue();
     },
     [drainQueue],
@@ -736,6 +843,16 @@ export function useDrop() {
       const dc = channel.current;
       if (!offer || !dc) return;
       setIncoming(null);
+      if (offer.batchFiles) {
+        dc.send(
+          JSON.stringify({
+            type: accept ? "batch-accepted" : "batch-rejected",
+            id: offer.id,
+          }),
+        );
+        if (accept) approvedBatches.current.add(offer.id);
+        return;
+      }
       if (!accept) {
         browserLog.info("transfer.offer.declined", { sizeBytes: offer.size });
         dc.send(JSON.stringify({ type: "file-rejected", id: offer.id }));
@@ -748,9 +865,7 @@ export function useDrop() {
           reason: "browser-memory-limit",
           sizeBytes: offer.size,
         });
-        setError(
-          labels.errors.oversizeFallback,
-        );
+        setError(labels.errors.oversizeFallback);
         dc.send(JSON.stringify({ type: "file-rejected", id: offer.id }));
         updateTransfer(offer.name, { status: "rejected" });
         activeTransfer.current = null;
