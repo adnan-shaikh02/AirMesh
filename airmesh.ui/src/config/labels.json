@@ -52,6 +52,7 @@
     "creatingRoom": "Creating secure room…",
     "createRoomForQr": "Create a room to show QR",
     "deviceConnected": "Device connected securely",
+    "connectedToast": "Device connected",
     "waitingToJoin": "Waiting for a device to join",
     "pairingReady": "Pairing ready when you are",
     "pairingCodeCopied": "Pairing code copied",
@@ -82,9 +83,11 @@
   "incoming": {
     "step": "INCOMING TRANSFER",
     "title": "Accept this file?",
+    "batchTitle": "Accept this batch?",
     "description": "{size} · sent directly from the connected device",
     "decline": "Decline",
-    "accept": "Accept file"
+    "accept": "Accept file",
+    "acceptBatch": "Accept all files"
   },
   "errors": {
     "invalidChunk": "The sender sent data outside the approved file size. The transfer was stopped.",

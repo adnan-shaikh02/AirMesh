@@ -10,7 +10,10 @@ function formatSize(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} ${labels.units.megabytes}`;
 }
 
-const interpolate = (template: string, values: Record<string, string | number>) =>
+const interpolate = (
+  template: string,
+  values: Record<string, string | number>,
+) =>
   template.replace(/\{(\w+)\}/g, (_, key: string) => String(values[key] ?? ""));
 const transferStatusLabels: Record<string, string> = labels.transferStatus;
 
@@ -32,6 +35,15 @@ function MainContent() {
     return () => window.clearTimeout(timeout);
   }, [notice]);
 
+  useEffect(() => {
+    if (drop.phase !== "connected") return;
+    const timeout = window.setTimeout(
+      () => setNotice(labels.transfer.connectedToast),
+      0,
+    );
+    return () => window.clearTimeout(timeout);
+  }, [drop.phase]);
+
   const addFiles = (list: FileList | null) => {
     if (!list?.length) return;
     const selected = Array.from(list);
@@ -39,7 +51,9 @@ function MainContent() {
       drop.sendFiles(selected);
       setNotice(
         interpolate(
-          selected.length === 1 ? labels.transfer.queuedSingular : labels.transfer.queuedPlural,
+          selected.length === 1
+            ? labels.transfer.queuedSingular
+            : labels.transfer.queuedPlural,
           { count: selected.length },
         ),
       );
@@ -57,18 +71,28 @@ function MainContent() {
   return (
     <div className={`app-shell ${theme}`}>
       <header className="topbar">
-        <a className="brand" href="#home" aria-label={labels.accessibility.home}>
+        <a
+          className="brand"
+          href="#home"
+          aria-label={labels.accessibility.home}
+        >
           <img className="brand-mark" src="/favicon.svg" alt="" />
           <span>
-            {labels.brand}<span className="brand-period">.</span>
+            {labels.brand}
+            <span className="brand-period">.</span>
           </span>
         </a>
-        <nav className="top-nav" aria-label={labels.accessibility.mainNavigation}></nav>
+        <nav
+          className="top-nav"
+          aria-label={labels.accessibility.mainNavigation}
+        ></nav>
         <div className="top-actions">
           <button
             className="theme-toggle"
             onClick={toggleTheme}
-            aria-label={interpolate(labels.accessibility.switchTheme, { theme: theme === "light" ? labels.theme.dark : labels.theme.light })}
+            aria-label={interpolate(labels.accessibility.switchTheme, {
+              theme: theme === "light" ? labels.theme.dark : labels.theme.light,
+            })}
           >
             <Icon name={theme === "light" ? "moon" : "sun"} size={18} />
           </button>
@@ -85,9 +109,7 @@ function MainContent() {
             <br />
             <em>{labels.hero.subtitle}</em>
           </h1>
-          <p>
-            {labels.hero.description}
-          </p>
+          <p>{labels.hero.description}</p>
         </section>
 
         <section
@@ -147,10 +169,13 @@ function MainContent() {
                   <Icon name="plus" size={23} />
                 </span>
                 <strong>
-                  {dragging ? labels.transfer.dropFiles : labels.transfer.addFiles}
+                  {dragging
+                    ? labels.transfer.dropFiles
+                    : labels.transfer.addFiles}
                 </strong>
                 <span>
-                  {labels.transfer.browseFiles} <span className="subtle">{labels.transfer.dragDrop}</span>
+                  {labels.transfer.browseFiles}{" "}
+                  <span className="subtle">{labels.transfer.dragDrop}</span>
                 </span>
                 <small>{labels.transfer.largeFilesNote}</small>
               </button>
@@ -158,9 +183,16 @@ function MainContent() {
                 <div className="selected-files">
                   <div className="files-heading">
                     <span>
-                      {interpolate(files.length === 1 ? labels.transfer.selectedSingular : labels.transfer.selectedPlural, { count: files.length })}
+                      {interpolate(
+                        files.length === 1
+                          ? labels.transfer.selectedSingular
+                          : labels.transfer.selectedPlural,
+                        { count: files.length },
+                      )}
                     </span>
-                    <button onClick={() => setFiles([])}>{labels.transfer.clearAll}</button>
+                    <button onClick={() => setFiles([])}>
+                      {labels.transfer.clearAll}
+                    </button>
                   </div>
                   {files.map((file, index) => (
                     <div className="file-row" key={`${file.name}-${index}`}>
@@ -173,7 +205,10 @@ function MainContent() {
                       </span>
                       <button
                         className="remove-file"
-                        aria-label={interpolate(labels.accessibility.removeFile, { file: file.name })}
+                        aria-label={interpolate(
+                          labels.accessibility.removeFile,
+                          { file: file.name },
+                        )}
                         onClick={() =>
                           setFiles((current) =>
                             current.filter((_, i) => i !== index),
@@ -198,7 +233,12 @@ function MainContent() {
                 <span>
                   {drop.phase === "connected"
                     ? files.length
-                      ? interpolate(files.length === 1 ? labels.transfer.sendSingular : labels.transfer.sendPlural, { count: files.length })
+                      ? interpolate(
+                          files.length === 1
+                            ? labels.transfer.sendSingular
+                            : labels.transfer.sendPlural,
+                          { count: files.length },
+                        )
                       : labels.transfer.selectFilesToSend
                     : drop.phase === "waiting"
                       ? labels.transfer.waitingForDevice
@@ -213,7 +253,9 @@ function MainContent() {
                 >
                   <div className="transfer-progress-top">
                     <span>
-                      {transfer.direction === "send" ? labels.transfer.sending : labels.transfer.receiving}{" "}
+                      {transfer.direction === "send"
+                        ? labels.transfer.sending
+                        : labels.transfer.receiving}{" "}
                       {transfer.name}
                     </span>
                     <span>
@@ -221,7 +263,8 @@ function MainContent() {
                         ? labels.transfer.complete
                         : transfer.status === "waiting"
                           ? labels.transfer.waitingForApproval
-                        : transferStatusLabels[transfer.status] ?? transfer.status}
+                          : (transferStatusLabels[transfer.status] ??
+                            transfer.status)}
                     </span>
                   </div>
                   <div className="progress-track">
@@ -249,7 +292,9 @@ function MainContent() {
             <div className="receive-panel">
               <div className="panel-heading">
                 <div>
-                  <span className="step-label">{labels.transfer.receiveStep}</span>
+                  <span className="step-label">
+                    {labels.transfer.receiveStep}
+                  </span>
                   <h2>{labels.transfer.connectDevice}</h2>
                   <p>{labels.transfer.connectHelp}</p>
                 </div>
@@ -326,7 +371,10 @@ function MainContent() {
                     placeholder={labels.transfer.pairingPlaceholder}
                     aria-label={labels.accessibility.pairingCode}
                   />
-                  <button type="submit" aria-label={labels.accessibility.connectWithCode}>
+                  <button
+                    type="submit"
+                    aria-label={labels.accessibility.connectWithCode}
+                  >
                     <Icon name="arrow" size={17} />
                   </button>
                 </form>
@@ -363,7 +411,9 @@ function MainContent() {
                   <span className="empty-device">
                     <Icon name="device" size={23} />
                   </span>
-                  <strong>{drop.peerName || labels.devices.connectedDevice}</strong>
+                  <strong>
+                    {drop.peerName || labels.devices.connectedDevice}
+                  </strong>
                   <span>{labels.devices.ready}</span>
                 </>
               ) : (
@@ -409,18 +459,28 @@ function MainContent() {
               <Icon name="receive" />
             </span>
             <span className="step-label">{labels.incoming.step}</span>
-            <h2 id="incoming-title">{labels.incoming.title}</h2>
+            <h2 id="incoming-title">
+              {drop.incoming.batchFiles
+                ? labels.incoming.batchTitle
+                : labels.incoming.title}
+            </h2>
             <p>
               <strong>{drop.incoming.name}</strong>
               <br />
-              {interpolate(labels.incoming.description, { size: formatSize(drop.incoming.size) })}
+              {drop.incoming.batchFiles
+                ? `${drop.incoming.batchFiles.map((file) => file.name).join(", ")} · ${formatSize(drop.incoming.size)}`
+                : interpolate(labels.incoming.description, {
+                    size: formatSize(drop.incoming.size),
+                  })}
             </p>
             <div className="incoming-actions">
               <button onClick={() => drop.respondToIncoming(false)}>
                 {labels.incoming.decline}
               </button>
               <button onClick={() => void drop.respondToIncoming(true)}>
-                {labels.incoming.accept}
+                {drop.incoming.batchFiles
+                  ? labels.incoming.acceptBatch
+                  : labels.incoming.accept}
               </button>
             </div>
           </section>
