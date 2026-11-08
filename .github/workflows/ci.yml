@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: read
+  statuses: write
 
 jobs:
   frontend:
@@ -27,6 +28,10 @@ jobs:
         run: npm ci
       - name: Lint
         run: npm run lint
+      - name: "notify vercel"
+        uses: "vercel/repository-dispatch/actions/status@v1"
+        with:
+          name: "Vercel - air-mesh: lint"
       - name: Build
         run: npm run build
 

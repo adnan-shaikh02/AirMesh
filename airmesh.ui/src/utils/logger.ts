@@ -1,4 +1,4 @@
-type LogDetails = Record<string, string | number | boolean | undefined>
+type LogDetails = Record<string, string | number | boolean | undefined>;
 
 function write(
   level: "info" | "warn" | "error",
@@ -17,10 +17,8 @@ function write(
 }
 
 export const browserLog = {
-  info: (event: string, details?: LogDetails) =>
-    write("info", event, details),
-  warn: (event: string, details?: LogDetails) =>
-    write("warn", event, details),
+  info: (event: string, details?: LogDetails) => write("info", event, details),
+  warn: (event: string, details?: LogDetails) => write("warn", event, details),
   error: (event: string, details?: LogDetails) =>
     write("error", event, details),
 };

@@ -26,8 +26,9 @@ The browser defaults to signaling at `ws://<page-host>:8787/signal`. If needed, 
 
 ## Architecture
 
-- `airmesh.ui/src/useDrop.ts` owns short lived room creation, WebSocket signaling, WebRTC negotiation, file approval, chunked transfer, backpressure, and progress state.
-- `airmesh.backend/src/server.ts` hosts `/signal` and `/health`. Rooms live in memory, use random 72 bit IDs and 192 bit pairing secrets, expire after ten minutes if nobody joins, and close when either peer leaves. It forwards only signaling messages and limits WebSocket messages to 64 KB.
+- `airmesh.ui/src/components/` contains the application screen and reusable UI (including icons); `src/utils/` contains the WebRTC transfer hook and browser logger; `src/styles/` contains global and screen styles.
+- `airmesh.backend/src/config/` contains runtime server limits, `src/routes/` contains HTTP route handlers, and `src/utils/` contains structured event logging. `src/server.ts` composes the HTTP and WebSocket signaling service. Room lifecycle and signaling currently live alongside the WebSocket connection handlers and can be extracted into a service as additional backend domains are added.
+- The backend hosts `/signal` and `/health`. Rooms live in memory, use random 72 bit IDs and 192 bit pairing secrets, expire after ten minutes if nobody joins, and close when either peer leaves. It forwards only signaling messages and limits WebSocket messages to 64 KB.
 - The peer connection uses STUN for ICE connectivity. WebRTC encrypts the data channel with DTLS. The signaling service never receives file contents.
 - Files move as 64 KB chunks. Receivers use the browser file saving picker where available; browsers without a streaming save API buffer transfers up to 100 MB, then reject larger files to avoid unbounded memory use.
 
