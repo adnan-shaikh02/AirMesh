@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { browserLog } from "./logger";
+import labels from "../config/labels.json";
+
+const interpolate = (template: string, values: Record<string, string | number>) =>
+  template.replace(/\{(\w+)\}/g, (_, key: string) => String(values[key] ?? ""));
+const serverErrorLabels: Record<string, string> = labels.errors.serverErrors;
+const serverErrorMessage = (code: string) =>
+  serverErrorLabels[code] ?? labels.errors.unknownServerError;
 
 type Phase = "idle" | "waiting" | "connecting" | "connected" | "error";
 type Incoming = { id: string; name: string; size: number; type: string };
@@ -188,7 +195,8 @@ export function useDrop() {
       let sent = 0;
       updateTransfer(file.name, { status: "transferring" });
       for (let offset = 0; offset < file.size; offset += chunkSize) {
-        if (dc.readyState !== "open") throw new Error("Connection interrupted");
+        if (dc.readyState !== "open")
+          throw new Error(labels.errors.connectionInterruptedShort);
         if (dc.bufferedAmount > 1024 * 1024) {
           browserLog.info("transfer.backpressure.wait", {
             bufferedBytes: dc.bufferedAmount,
@@ -217,7 +225,7 @@ export function useDrop() {
       await new Promise<void>((resolve, reject) => {
         const timeout = window.setTimeout(() => {
           dc.removeEventListener("message", listener);
-          reject(new Error("Receiver did not confirm the file"));
+          reject(new Error(labels.errors.receiverDidNotConfirm));
         }, 120_000);
         const listener = (event: MessageEvent) => {
           if (typeof event.data !== "string") return;
@@ -235,7 +243,7 @@ export function useDrop() {
                 new Error(
                   typeof message.reason === "string"
                     ? message.reason
-                    : "The receiver could not save the file.",
+                    : labels.errors.receiverCouldNotSave,
                 ),
               );
             }
@@ -321,7 +329,7 @@ export function useDrop() {
                   expectedBytes: current?.size,
                 });
                 setError(
-                  "The sender sent data outside the approved file size. The transfer was stopped.",
+                  labels.errors.invalidChunk,
                 );
                 dc.close();
                 return;
@@ -397,7 +405,10 @@ export function useDrop() {
               const offer = activeTransfer.current;
               if (!offer) return;
               if (receiverBytes.current !== offer.size) {
-                const reason = `Received ${receiverBytes.current} of ${offer.size} bytes. The transfer was incomplete.`;
+                const reason = interpolate(labels.errors.incompleteTransfer, {
+                  received: receiverBytes.current,
+                  size: offer.size,
+                });
                 setError(reason);
                 browserLog.error("transfer.receive.incomplete", {
                   receivedBytes: receiverBytes.current,
@@ -439,7 +450,7 @@ export function useDrop() {
             const message =
               reason instanceof Error
                 ? reason.message
-                : "The incoming file could not be written.";
+                : labels.errors.incomingWriteFailed;
             setError(message);
             browserLog.error("transfer.receive.failed", { message });
             if (activeTransfer.current) {
@@ -484,7 +495,7 @@ export function useDrop() {
         ) {
           setPhase("error");
           setError(
-            "The direct connection was interrupted. Check both devices are online and try again.",
+            labels.errors.connectionInterrupted,
           );
         }
       };
@@ -526,10 +537,10 @@ export function useDrop() {
         const endpoint = signalUrl();
         const hint =
           location.protocol === "https:"
-            ? " This page needs a TLS enabled WSS signaling endpoint."
-            : " For LAN testing, open Drop using the Windows PC LAN address and allow inbound TCP 8787 through Windows Firewall.";
+            ? labels.errors.tlsHint
+            : labels.errors.lanHint;
         setPhase("error");
-        setError(`Could not reach the signaling server at ${endpoint}.${hint}`);
+        setError(interpolate(labels.errors.signalingUnreachable, { endpoint, hint }));
         browserLog.error("signaling.connection.failed", {
           endpoint,
           pageProtocol: location.protocol,
@@ -612,13 +623,13 @@ export function useDrop() {
         setPhase("idle");
         setError(
           message.type === "room-closed"
-            ? "This pairing room expired."
-            : "The other device disconnected.",
+            ? labels.errors.roomExpired
+            : labels.errors.otherDeviceDisconnected,
         );
       } else if (message.type === "error" && typeof message.code === "string") {
         browserLog.error("pairing.server-error", { code: message.code });
         setPhase("error");
-        setError(message.code);
+        setError(serverErrorMessage(message.code));
       }
     });
     ws.onopen = () => {
@@ -646,7 +657,7 @@ export function useDrop() {
       }
       if (!roomId || !token) {
         browserLog.warn("pairing.join.invalid-code");
-        setError("Enter a valid pairing link or code.");
+        setError(labels.errors.invalidPairingCode);
         setPhase("error");
         return;
       }
@@ -686,7 +697,7 @@ export function useDrop() {
         ) {
           browserLog.error("pairing.server-error", { code: message.code });
           setPhase("error");
-          setError(message.code);
+          setError(serverErrorMessage(message.code));
         } else if (
           message.type === "peer-left" ||
           message.type === "room-closed"
@@ -696,7 +707,7 @@ export function useDrop() {
               message.type === "room-closed" ? "room-closed" : "peer-left",
           });
           setPhase("idle");
-          setError("The other device disconnected.");
+          setError(labels.errors.otherDeviceDisconnected);
         }
       });
       ws.onopen = () => {
@@ -738,7 +749,7 @@ export function useDrop() {
           sizeBytes: offer.size,
         });
         setError(
-          "This browser cannot save files over 100 MB without loading them into memory. Use a browser with file saving support or choose a smaller file.",
+          labels.errors.oversizeFallback,
         );
         dc.send(JSON.stringify({ type: "file-rejected", id: offer.id }));
         updateTransfer(offer.name, { status: "rejected" });
