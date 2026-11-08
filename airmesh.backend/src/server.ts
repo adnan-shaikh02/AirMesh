@@ -1,29 +1,16 @@
 import { createServer } from "node:http";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { WebSocket, WebSocketServer, type RawData } from "ws";
+import {
+  maxPayloadBytes,
+  port as PORT,
+  sessionTtlMs as SESSION_TTL_MS,
+} from "./config/serverConfig";
+import { handleHealthRoute } from "./routes/healthRoute";
+import { serverLog } from "./utils/logger";
 
-const PORT = Number(process.env.PORT ?? 8787);
-const SESSION_TTL_MS = 10 * 60 * 1000;
-const MAX_PAYLOAD = 64 * 1024;
 const rooms = new Map<string, Room>();
 let nextConnectionId = 1;
-
-type LogDetails = Record<string, string | number | boolean | undefined>;
-function serverLog(
-  level: "info" | "warn" | "error",
-  event: string,
-  details?: LogDetails,
-) {
-  const message = `[Drop:server] ${event}`;
-  if (level === "info") {
-    if (details) console.info(message, details);
-    else console.info(message);
-  } else if (level === "warn") {
-    if (details) console.warn(message, details);
-    else console.warn(message);
-  } else if (details) console.error(message, details);
-  else console.error(message);
-}
 
 type Client = { ws: WebSocket; role: "sender" | "receiver" };
 type Room = {
@@ -74,20 +61,7 @@ function parseMessage(raw: RawData): Message | null {
 }
 
 const server = createServer((req, res) => {
-  if (req.url === "/health") {
-    res.writeHead(200, {
-      "content-type": "application/json",
-      "cache-control": "no-store",
-    });
-    res.end(
-      JSON.stringify({
-        ok: true,
-        service: "drop-signaling",
-        activeRooms: rooms.size,
-      }),
-    );
-    return;
-  }
+  if (handleHealthRoute(req, res, rooms.size)) return;
   res.writeHead(404, { "content-type": "text/plain" });
   res.end("Not found");
 });
@@ -95,7 +69,7 @@ const server = createServer((req, res) => {
 const wss = new WebSocketServer({
   server,
   path: "/signal",
-  maxPayload: MAX_PAYLOAD,
+  maxPayload: maxPayloadBytes,
   perMessageDeflate: false,
 });
 
